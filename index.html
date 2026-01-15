@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>May Asim Pa x May Ihaw Pa POS</title>
+    <style>
+        :root {
+            --primary: #1b4332;
+            --accent: #ffb703;
+            --bg: #f8f9fa;
+            --white: #ffffff;
+            --text: #212529;
+            --gcash: #007dfe;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding-bottom: 50px;
+        }
+
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 5px solid var(--accent);
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .nav-btn {
+            background: var(--white);
+            border: 2px solid var(--primary);
+            padding: 12px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 8px;
+        }
+
+        .nav-btn.active { background: var(--primary); color: white; }
+
+        .container { width: 95%; max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .view { display: none; }
+        .view.active { display: block; }
+
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .menu-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: #fff; }
+        
+        .flavor-select { width: 100%; margin: 8px 0; padding: 5px; font-size: 0.8rem; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            overflow-y: auto;
+        }
+
+        .receipt-slip {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            margin: 10px auto;
+            width: 300px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            color: #000;
+        }
+
+        .dashed-line { border-top: 1px dashed #000; margin: 10px 0; }
+        .flex-row { display: flex; justify-content: space-between; margin: 5px 0; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+
+        input, select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+        
+        .btn-pay { width: 100%; background: var(--primary); color: white; padding: 15px; font-size: 1.2rem; margin-top: 10px; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        .btn-close { background: #dc3545; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; margin-top: 10px; font-weight: bold; border-radius: 5px; }
+        
+        .toggle-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .toggle-btn {
+            padding: 10px;
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            background: #f8f9fa;
+        }
+
+        .toggle-btn.active {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: white;
+        }
+
+        .cash-input-box {
+            background: #fff9db;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #ffe066;
+        }
+
+        .add-product-form {
+            background: #f1f1f1;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #receipt-content-area, #receipt-content-area * { visibility: visible; }
+            #receipt-content-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .btn-pay, .btn-close { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1 style="margin:0;">MAY ASIM PA 🥭</h1>
+    <h2 style="margin:0; font-size: 1rem; color: var(--accent);">MAY IHAW PA 🔥</h2>
+</header>
+
+<nav>
+    <button class="nav-btn active" onclick="showView('cashier', this)">CASHIER</button>
+    <button class="nav-btn" onclick="authInventory(this)">INVENTORY</button>
+    <button class="nav-btn" onclick="showView('receipts', this)">SALES TRACKER</button>
+</nav>
+
+<div class="container">
+    
+    <div id="cashier" class="view active">
+        <h3>Menu</h3>
+        <div class="menu-grid" id="menu-items"></div>
+
+        <div style="margin-top: 30px; border-top: 3px solid var(--primary); padding-top: 15px;">
+            <h4>Current Basket</h4>
+            <div id="basketList"></div>
+            <div class="dashed-line"></div>
+            
+            <label><strong>Order Type:</strong></label>
+            <div class="toggle-group">
+                <div id="typePickup" class="toggle-btn active" onclick="setOrderType('PICKUP')">PICKUP</div>
+                <div id="typeDelivery" class="toggle-btn" onclick="setOrderType('DELIVERY')">DELIVERY</div>
+            </div>
+
+            <div class="flex-row">
+                <label>Delivery Fee:</label>
+                <select id="delFee" onchange="calcTotal()">
+                    <option value="0">Free (0)</option>
+                    <option value="20">20 PHP</option>
+                    <option value="30">30 PHP</option>
+                    <option value="40">40 PHP</option>
+                </select>
+            </div>
+
+            <label><strong>Payment Method:</strong></label>
+            <div class="toggle-group">
+                <div id="payCash" class="toggle-btn active" onclick="setPayment('CASH')">CASH</div>
+                <div id="payGcash" class="toggle-btn" onclick="setPayment('GCASH')">GCASH</div>
+            </div>
+
+            <div id="cashInputArea" class="cash-input-box">
+                <div class="flex-row">
+                    <span>Cash Tendered:</span>
+                    <input type="number" id="cashAmount" placeholder="0.00" oninput="calcChange()" style="width: 100px;">
+                </div>
+                <div class="flex-row" style="margin-top:5px; font-weight:bold; color: #d9480f;">
+                    <span>Change:</span>
+                    <span><span id="changeDisplay">0</span> PHP</span>
+                </div>
+            </div>
+
+            <div class="flex-row" style="font-size: 1.4rem; color: var(--primary);">
+                <strong>Total:</strong> <span id="totalDisplay">0</span> PHP
+            </div>
+            <button class="btn-pay" onclick="checkout()">PROCESS CHECKOUT</button>
+        </div>
+    </div>
+
+    <div id="inventory" class="view">
+        <h3>Inventory Management</h3>
+        <table id="inventoryTable">
+            <thead>
+                <tr><th>Item</th><th>Price</th><th>Stock</th><th>Action</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div class="add-product-form">
+            <h4>Add New Product</h4>
+            <input type="text" id="newProdName" placeholder="Item Name" style="width: 95%; margin-bottom: 5px;">
+            <input type="number" id="newProdPrice" placeholder="Price" style="width: 95%; margin-bottom: 5px;">
+            <input type="number" id="newProdStock" placeholder="Initial Stock" style="width: 95%; margin-bottom: 10px;">
+            <button onclick="addNewProduct()" style="width:100%; background:var(--primary); color:white; border:none; padding:10px; border-radius: 5px; cursor: pointer; font-weight:bold;">Add to Menu</button>
+        </div>
+    </div>
+
+    <div id="receipts" class="view">
+        <h3>Sales Tracker</h3>
+        <div class="filter-box" style="background:#eee; padding:15px; border-radius:8px; margin-bottom:15px;">
+            <label><strong>Date:</strong></label>
+            <input type="date" id="dateFilter" onchange="renderSales()">
+            <div id="dayTotal" style="font-weight:bold; margin-top:10px; color: var(--primary);">Total Sales: 0 PHP</div>
+            <button onclick="saveDailyReport()" style="width:100%; margin-top:10px; padding:8px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">END DAY & SAVE SUMMARY</button>
+        </div>
+        <button onclick="clearHistory()" style="background:red; color:white; border:none; padding:5px; margin-bottom:10px; cursor:pointer; border-radius: 4px;">Clear All History</button>
+        <div id="salesLog"></div>
+    </div>
+</div>
+
+<div id="receiptModal" class="modal-overlay">
+    <div id="receipt-content-area"></div>
+</div>
+
+<script>
+    const FLAVORS = {
+        mangga: ["Indian", "Kalabaw", "Piko"],
+        mais: ["Butter & Salt", "Butter & Sugar", "Cheesy Butter", "BBQ"]
+    };
+
+    let inventory = JSON.parse(localStorage.getItem('mangga_pos_inv')) || [
+        { id: 1, name: "Mangga Tub", type: "mangga", price: 100, stock: 20 },
+        { id: 2, name: "Corn Medium", type: "mais", price: 55, stock: 15 },
+        { id: 3, name: "Corn Large", type: "mais", price: 65, stock: 15 },
+        { id: 4, name: "Grilled Saba", type: "none", price: 25, stock: 15 }
+    ];
+
+    let salesHistory = JSON.parse(localStorage.getItem('mangga_pos_sales')) || [];
+    let basket = [];
+    let selectedPayment = 'CASH';
+    let selectedOrderType = 'PICKUP';
+    let queueCount = parseInt(localStorage.getItem('mangga_queue_num')) || 1;
+
+    document.getElementById('dateFilter').valueAsDate = new Date();
+
+    function setOrderType(type) {
+        selectedOrderType = type;
+        document.getElementById('typePickup').classList.toggle('active', type === 'PICKUP');
+        document.getElementById('typeDelivery').classList.toggle('active', type === 'DELIVERY');
+        calcTotal();
+    }
+
+    function setPayment(method) {
+        selectedPayment = method;
+        document.getElementById('payCash').classList.toggle('active', method === 'CASH');
+        document.getElementById('payGcash').classList.toggle('active', method === 'GCASH');
+        document.getElementById('cashInputArea').style.display = (method === 'CASH') ? 'block' : 'none';
+        calcChange();
+    }
+
+    function calcChange() {
+        const total = parseFloat(document.getElementById('totalDisplay').innerText);
+        const tendered = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const change = tendered - total;
+        document.getElementById('changeDisplay').innerText = change > 0 ? change : 0;
+    }
+
+    function calcTotal() {
+        const sub = basket.reduce((s, i) => s + i.price, 0);
+        const del = parseInt(document.getElementById('delFee').value) || 0;
+        const total = sub + del;
+        document.getElementById('totalDisplay').innerText = total;
+        
+        document.getElementById('basketList').innerHTML = basket.map((i, idx) => `
+            <div class="flex-row" style="font-size:0.9rem;">
+                <span>${i.name} (${i.selectedFlavor})</span>
+                <span>${i.price} <button onclick="removeFromBasket(${idx})" style="color:red; border:none; background:none; cursor:pointer;">x</button></span>
+            </div>
+        `).join('');
+        calcChange();
+    }
+
+    function checkout() {
+        if(basket.length === 0) return;
+        
+        const sub = basket.reduce((s, i) => s + i.price, 0);
+        const del = parseInt(document.getElementById('delFee').value) || 0;
+        const total = sub + del;
+        const tendered = parseFloat(document.getElementById('cashAmount').value) || 0;
+
+        if(selectedPayment === 'CASH' && tendered < total) {
+            alert("Insufficient cash tendered!");
+            return;
+        }
+
+        const receipt = {
+            id: Date.now(),
+            queue: selectedOrderType === 'PICKUP' ? queueCount++ : 'N/A',
+            time: new Date().toLocaleString(),
+            date: new Date().toISOString().split('T')[0],
+            items: [...basket],
+            orderType: selectedOrderType,
+            payment: selectedPayment,
+            subtotal: sub,
+            delivery: del,
+            total: total,
+            tendered: tendered,
+            change: tendered - total
+        };
+
+        basket.forEach(b => {
+            const inv = inventory.find(i => i.id === b.id);
+            if(inv) inv.stock--;
+        });
+
+        salesHistory.unshift(receipt);
+        localStorage.setItem('mangga_pos_inv', JSON.stringify(inventory));
+        localStorage.setItem('mangga_pos_sales', JSON.stringify(salesHistory));
+        localStorage.setItem('mangga_queue_num', queueCount);
+
+        showReceiptPopup(receipt, true);
+        
+        basket = [];
+        document.getElementById('cashAmount').value = '';
+        document.getElementById('delFee').value = "0";
+        setOrderType('PICKUP');
+        setPayment('CASH');
+        calcTotal();
+        renderMenu();
+    }
+
+    function generateReceiptHTML(s, isModal = false) {
+        return `
+            <div class="receipt-slip">
+                <center>
+                    <strong style="font-size:1.2rem;">MAY ASIM PA x MAY IHAW PA</strong><br>
+                    <small>${s.time}</small>
+                </center>
+                <div class="dashed-line"></div>
+                ${s.orderType === 'PICKUP' ? `<center><h1 style="margin:5px 0;">#${s.queue}</h1><small>PICKUP QUEUE</small></center><div class="dashed-line"></div>` : ''}
+                <div class="flex-row"><strong>TYPE:</strong> <span>${s.orderType}</span></div>
+                <div class="flex-row"><strong>PAYMENT:</strong> <span>${s.payment}</span></div>
+                <div class="dashed-line"></div>
+                ${s.items.map(i => `<div class="flex-row"><span>${i.name}<br><small>(${i.selectedFlavor})</small></span><span>${i.price}</span></div>`).join('')}
+                <div class="dashed-line"></div>
+                <div class="flex-row"><span>Subtotal</span><span>${s.subtotal}</span></div>
+                <div class="flex-row"><span>Delivery</span><span>${s.delivery}</span></div>
+                <div class="flex-row" style="font-size: 1.1rem;"><strong>TOTAL</strong><strong>${s.total} PHP</strong></div>
+                ${s.payment === 'CASH' ? `
+                    <div class="flex-row"><span>Cash Paid</span><span>${s.tendered}</span></div>
+                    <div class="flex-row"><strong>CHANGE</strong><strong>${s.change} PHP</strong></div>
+                ` : ''}
+                <div class="dashed-line"></div>
+                <center><small>Thank you for choosing us!</small></center>
+                ${isModal ? `
+                    <button class="btn-pay" style="background:#444; font-size: 0.9rem;" onclick="window.print()">PRINT RECEIPT</button>
+                    <button class="btn-close" onclick="closeModal()">CLOSE</button>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    function showReceiptPopup(s, isModal) {
+        const area = document.getElementById('receipt-content-area');
+        area.innerHTML = generateReceiptHTML(s, isModal);
+        document.getElementById('receiptModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('receiptModal').style.display = 'none';
+    }
+
+    function renderMenu() {
+        const grid = document.getElementById('menu-items');
+        grid.innerHTML = inventory.map(item => {
+            let flavorHtml = '';
+            if(item.type && item.type !== 'none') {
+                const options = FLAVORS[item.type].map(f => `<option value="${f}">${f}</option>`).join('');
+                flavorHtml = `<select id="flavor-${item.id}" class="flavor-select">${options}</select>`;
+            }
+            return `
+                <div class="menu-card">
+                    <strong>${item.name}</strong><br>
+                    ${item.price} PHP | Stock: ${item.stock}<br>
+                    ${flavorHtml}
+                    <button onclick="addToBasket(${item.id})" style="width:100%; margin-top:5px; cursor:pointer;" ${item.stock <= 0 ? 'disabled' : ''}>
+                        ${item.stock <= 0 ? 'SOLD OUT' : 'ADD TO BASKET'}
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function addToBasket(id) {
+        const item = inventory.find(i => i.id === id);
+        if(item.stock > 0) {
+            const flavor = document.getElementById(`flavor-${id}`)?.value || "Plain";
+            basket.push({...item, selectedFlavor: flavor});
+            calcTotal();
+        }
+    }
+
+    function removeFromBasket(index) {
+        basket.splice(index, 1);
+        calcTotal();
+    }
+
+    function showView(viewId, btn) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        if(btn) btn.classList.add('active');
+        if(viewId === 'cashier') renderMenu();
+        if(viewId === 'inventory') renderInventory();
+        if(viewId === 'receipts') renderSales();
+    }
+
+    function renderSales() {
+        const filterDate = document.getElementById('dateFilter').value;
+        const filtered = salesHistory.filter(s => s.date === filterDate);
+        const daySum = filtered.reduce((sum, s) => sum + s.total, 0);
+        document.getElementById('dayTotal').innerText = `Total Sales for ${filterDate}: ${daySum} PHP`;
+        document.getElementById('salesLog').innerHTML = filtered.map(s => generateReceiptHTML(s, false)).join('');
+    }
+
+    function saveDailyReport() {
+        const filterDate = document.getElementById('dateFilter').value;
+        const filtered = salesHistory.filter(s => s.date === filterDate);
+        if(filtered.length === 0) { alert("No sales for this date."); return; }
+
+        let report = `DAILY SALES REPORT: ${filterDate}\n`;
+        report += `==============================\n`;
+        filtered.forEach(s => {
+            report += `[${s.time}] Type: ${s.orderType} | Payment: ${s.payment} | Total: ${s.total} PHP\n`;
+        });
+        report += `==============================\n`;
+        report += `GRAND TOTAL: ${filtered.reduce((sum, s) => sum + s.total, 0)} PHP`;
+
+        const blob = new Blob([report], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Sales_Report_${filterDate}.txt`;
+        a.click();
+    }
+
+    function renderInventory() {
+        const tbody = document.querySelector('#inventoryTable tbody');
+        tbody.innerHTML = inventory.map(item => `
+            <tr>
+                <td>${item.name}</td>
+                <td>${item.price}</td>
+                <td><button onclick="adjStock(${item.id}, -1)">-</button> ${item.stock} <button onclick="adjStock(${item.id}, 1)">+</button></td>
+                <td><button onclick="delProd(${item.id})" style="color:red; border:none; background:none; font-weight:bold; cursor:pointer;">[X]</button></td>
+            </tr>
+        `).join('');
+    }
+
+    function adjStock(id, amt) {
+        const item = inventory.find(i => i.id === id);
+        if(item) item.stock = Math.max(0, item.stock + amt);
+        localStorage.setItem('mangga_pos_inv', JSON.stringify(inventory));
+        renderInventory();
+    }
+
+    function addNewProduct() {
+        const name = document.getElementById('newProdName').value;
+        const price = parseInt(document.getElementById('newProdPrice').value);
+        const stock = parseInt(document.getElementById('newProdStock').value);
+        
+        if(name && price) {
+            inventory.push({ 
+                id: Date.now(), 
+                name, 
+                price, 
+                stock, 
+                type: "none" // Custom items are treated as 'none' type (no flavor select)
+            });
+            localStorage.setItem('mangga_pos_inv', JSON.stringify(inventory));
+            renderInventory();
+            document.getElementById('newProdName').value = '';
+            document.getElementById('newProdPrice').value = '';
+            document.getElementById('newProdStock').value = '';
+            alert("Product Added Successfully!");
+        } else {
+            alert("Please fill in Name and Price.");
+        }
+    }
+
+    function delProd(id) {
+        if(confirm("Delete item?")) {
+            inventory = inventory.filter(i => i.id !== id);
+            localStorage.setItem('mangga_pos_inv', JSON.stringify(inventory));
+            renderInventory();
+        }
+    }
+
+    function authInventory(btn) {
+        // PASSWORD UPDATED TO 050123
+        if(prompt("Enter Administrator Password:") === "050123") showView('inventory', btn);
+        else alert("Unauthorized Access!");
+    }
+
+    function clearHistory() {
+        if(confirm("DANGER: This will delete ALL history. Continue?")) {
+            salesHistory = [];
+            localStorage.setItem('mangga_pos_sales', JSON.stringify([]));
+            localStorage.setItem('mangga_queue_num', 1);
+            queueCount = 1;
+            renderSales();
+        }
+    }
+
+    renderMenu();
+</script>
+
+</body>
+</html>
